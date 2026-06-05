@@ -77,6 +77,22 @@ const { signature, verified } = await signMessage(
 
 `verified` reflects whether the host already validated the signature against the user's Safe; you can re-verify server-side before issuing a session cookie. See [`components/wallet/SignInDemo.tsx`](components/wallet/SignInDemo.tsx).
 
+## Creating or connecting an account
+
+Normally the host pushes the wallet to you and there is no connect button. When you *do* need to prompt the user — onboarding a brand-new user, or asking an already-open miniapp for a connection — call `requestCreateAccount()`. The host opens its passkey account-creation popup (passkey → Safe deployment → Circles registration) and resolves once the user has an account:
+
+```ts
+'use client';
+import { requestCreateAccount } from '@aboutcircles/miniapp-sdk';
+
+// Resolves with the user's account; rejects if they cancel.
+const { authenticated, address } = await requestCreateAccount();
+```
+
+Call it from a click handler — the passkey prompt needs the user gesture — and pre-load the SDK so the call isn't waiting on a dynamic import. If the user is already connected it resolves immediately with the current address, and `onWalletChange` listeners fire on success too. The `/account` route demonstrates the full flow; see [`components/wallet/CreateAccountDemo.tsx`](components/wallet/CreateAccountDemo.tsx).
+
+> Requires `@aboutcircles/miniapp-sdk@^0.1.44` — `requestCreateAccount` was added in 0.1.44.
+
 ## Looking up a Circles profile
 
 The [`@aboutcircles/sdk`](https://www.npmjs.com/package/@aboutcircles/sdk) package provides a higher-level, read-friendly client. The `/profile` route uses its consolidated **profile view** endpoint to pull avatar info, name, trust stats, and balances for the connected address in a single call:
@@ -118,12 +134,13 @@ The host batches and signs through the user's Safe and returns the resulting tx 
 app/
   layout.tsx              Root: wraps every page in <WalletProvider><AppShell>
   page.tsx                Dashboard — connection card, sign-in demo, nav cards
+  account/page.tsx        Account creation/connection via requestCreateAccount
   profile/page.tsx        Circles avatar lookup via @aboutcircles/sdk
   actions/page.tsx        Placeholder (where sendTransactions demos go)
   globals.css             Tailwind v4 + shadcn tokens (light only)
 components/
   layout/                 AppShell, Header, Sidebar, NavCards
-  wallet/                 WalletProvider, WalletStatus, ConnectionCard, SignInDemo
+  wallet/                 WalletProvider, WalletStatus, ConnectionCard, CreateAccountDemo, SignInDemo
   profile/                ProfileLookup (uses @aboutcircles/sdk)
   ui/                     shadcn-generated primitives
 hooks/use-wallet.ts       Re-export of useWallet
@@ -136,6 +153,7 @@ lib/
 
 - **Read-only flows** (profile, balance, trust graph) — call `useWallet()` to get the address, then drive `@aboutcircles/sdk` from a client component. See `ProfileLookup` for the pattern.
 - **Write flows** — keep `sendTransactions()` calls inside `'use client'` components; build the calldata however you like (viem, ethers, or hand-encoded).
+- **Onboarding** — call `requestCreateAccount()` from a click to prompt account creation or connection. See `CreateAccountDemo`.
 - **Authentication** — call `signMessage()` to sign a SIWE-style nonce; re-verify the signature on your backend. See `SignInDemo`.
 - **New routes** — drop a `page.tsx` under `app/<route>/` and add an entry to `lib/nav.ts` to expose it in the sidebar.
 

@@ -10,6 +10,11 @@ type Item = {
 
 const ITEMS: Item[] = [
   {
+    href: '/account',
+    title: 'Account',
+    description: 'Prompt the host to create or connect a Circles account via requestCreateAccount().',
+  },
+  {
     href: '/profile',
     title: 'Profile',
     description: 'Look up the connected user’s Circles avatar — name, description, image.',
