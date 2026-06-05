@@ -19,15 +19,19 @@ type Status =
 export function CreateAccountDemo() {
   const { address, isConnected, isMiniappHost } = useWallet();
   const sdkRef = useRef<MiniappSdk | null>(null);
+  const [sdkReady, setSdkReady] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
-  // Pre-load the host bridge on mount so the click handler can reach
-  // requestCreateAccount without first awaiting the dynamic import — keeping the
-  // call inside the user gesture the host's passkey prompt requires.
+  // Pre-load the host bridge on mount and gate the button on `sdkReady`, so the
+  // click handler calls requestCreateAccount straight from sdkRef.current — no
+  // dynamic import awaited mid-click, keeping the call inside the user gesture
+  // the host's passkey prompt requires.
   useEffect(() => {
     let active = true;
     import('@aboutcircles/miniapp-sdk').then((sdk) => {
-      if (active) sdkRef.current = sdk;
+      if (!active) return;
+      sdkRef.current = sdk;
+      setSdkReady(true);
     });
     return () => {
       active = false;
@@ -35,10 +39,10 @@ export function CreateAccountDemo() {
   }, []);
 
   async function handleCreateAccount() {
+    const sdk = sdkRef.current;
+    if (!sdk) return; // button stays disabled until the pre-loaded SDK is ready
     setStatus({ kind: 'pending' });
     try {
-      const sdk = sdkRef.current ?? (await import('@aboutcircles/miniapp-sdk'));
-      sdkRef.current = sdk;
       // Opens the host's passkey "create account / log in" popup and resolves
       // once the user has a Circles account (immediately if already connected).
       // Rejects if the user cancels. onWalletChange listeners also fire on success.
@@ -72,7 +76,7 @@ export function CreateAccountDemo() {
       <CardContent className="space-y-4 text-sm">
         <Button
           onClick={handleCreateAccount}
-          disabled={!isMiniappHost || status.kind === 'pending'}
+          disabled={!isMiniappHost || !sdkReady || status.kind === 'pending'}
         >
           {status.kind === 'pending'
             ? 'Waiting for host…'
