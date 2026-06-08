@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@aboutcircles/miniapp-sdk": "^0.1.30",
+    "@aboutcircles/miniapp-sdk": "^0.1.44",
     "@aboutcircles/sdk": "^0.1.30",
     "@base-ui/react": "^1.4.1",
     "class-variance-authority": "^0.7.1",

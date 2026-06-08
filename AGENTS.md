@@ -25,6 +25,7 @@ This is a starter template for building [Circles](https://aboutcircles.com) mini
 app/
   layout.tsx                    Root: <WalletProvider><AppShell>{children}
   page.tsx                      Dashboard (ConnectionCard + SignInDemo + NavCards)
+  account/page.tsx              requestCreateAccount code sample
   profile/page.tsx              Profile lookup
   actions/page.tsx              sendTransactions code sample
   globals.css                   Tailwind v4 + shadcn tokens (light only)
@@ -37,12 +38,13 @@ components/
     Sidebar.tsx                 Desktop nav (md+), driven by lib/nav.ts
     MobileNav.tsx               Hamburger + Sheet drawer (below md)
     CurrentPage.tsx             "/ Dashboard" crumb in header
-    NavCards.tsx                Dashboard's link-cards to /profile and /actions
+    NavCards.tsx                Dashboard's link-cards to /account, /profile and /actions
     PageNav.tsx                 Prev/next sibling navigation at bottom of sub-pages
   wallet/
     WalletProvider.tsx          Client context, subscribes to onWalletChange
     WalletStatus.tsx            Badge with shortened address
     ConnectionCard.tsx          Full connection details card
+    CreateAccountDemo.tsx       requestCreateAccount() demo
     SignInDemo.tsx              signMessage() demo
   profile/
     ProfileLookup.tsx           Profile lookup via getProfileView + getProfileByCid
@@ -65,11 +67,12 @@ Used for everything that talks to the Circles host (the user's wallet and Safe).
 
 ```ts
 import {
-  onWalletChange,      // (cb: (address: string | null) => void) => unsubscribe
-  isMiniappMode,       // () => boolean — true when running inside the host iframe
-  sendTransactions,    // (txs: { to, data?, value? }[]) => Promise<string[]>
-  signMessage,         // (msg, signatureType?) => Promise<{ signature, verified }>
-  onAppData,           // host can pass extra app data via ?data=
+  onWalletChange,        // (cb: (address: string | null) => void) => unsubscribe
+  isMiniappMode,         // () => boolean — true when running inside the host iframe
+  requestCreateAccount,  // () => Promise<{ authenticated, address }> — open the host's passkey create/login flow
+  sendTransactions,      // (txs: { to, data?, value? }[]) => Promise<string[]>
+  signMessage,           // (msg, signatureType?) => Promise<{ signature, verified }>
+  onAppData,             // host can pass extra app data via ?data=
 } from '@aboutcircles/miniapp-sdk';
 ```
 
@@ -77,6 +80,7 @@ import {
 - **There is no "Connect" button.** The host pushes the wallet via `onWalletChange`. If you find yourself adding a connect button, you are working around the wrong problem. Outside the host (standalone `pnpm dev`), the callback never fires — the "Not connected" state is *expected*, not a bug.
 - **The SDK touches `window` and `parent`.** It must be dynamically imported inside a client component's `useEffect`. **Never** top-level import it from a server component or a top-level module — you will see `window is not defined` at build time. See `WalletProvider.tsx` for the canonical pattern (`import('@aboutcircles/miniapp-sdk').then(({ onWalletChange }) => …)`).
 - **`onWalletChange` returns an unsubscribe function.** Capture it and call it in the effect's cleanup, or you will leak subscriptions on hot reload.
+- **`requestCreateAccount` is the one proactive connect.** Every other primitive waits for the host to push a wallet; this asks the host to open its passkey create/login popup and resolves once the user has an account (immediately if already connected, rejects on cancel). Call it from a click handler — it needs the user gesture — and pre-load the SDK so the call isn't sitting behind an `await import(...)`. Requires `@aboutcircles/miniapp-sdk@^0.1.44`. See `CreateAccountDemo.tsx`.
 
 ### `@aboutcircles/sdk` — read/write Circles data
 
