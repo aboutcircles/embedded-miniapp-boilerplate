@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 
+import { ProfileSearch } from '@/components/profile/ProfileSearch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWallet } from '@/components/wallet/WalletProvider';
+import { getSdk } from '@/lib/circles';
 import { shortenAddress } from '@/lib/utils';
 
 type AvatarType =
@@ -57,26 +59,30 @@ function formatCrc(value: string | undefined): string | null {
 }
 
 export function ProfileLookup() {
-  const { address, isConnected } = useWallet();
+  const { address } = useWallet();
+  const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [nonce, setNonce] = useState(0);
 
+  // A searched avatar overrides the connected one as the lookup target.
+  const target = selected ?? address ?? null;
+  const viewingOther = !!selected && selected !== address;
+
   useEffect(() => {
-    if (!address) return;
+    if (!target) return;
     let cancelled = false;
 
     (async () => {
       try {
-        const { Sdk } = await import('@aboutcircles/sdk');
-        const sdk = new Sdk();
+        const sdk = await getSdk();
         // `getProfileView` returns avatarInfo + indexed profile + trust stats + balances
         // in one call, and returns an empty/partial view (rather than throwing) when
         // the address is not a registered Circles avatar.
-        const view = await sdk.rpc.profile.getProfileView(address as `0x${string}`);
+        const view = await sdk.rpc.profile.getProfileView(target as `0x${string}`);
 
         if (!view.avatarInfo) {
           if (cancelled) return;
-          setResult({ kind: 'not-registered', address, nonce });
+          setResult({ kind: 'not-registered', address: target, nonce });
           return;
         }
 
@@ -94,7 +100,7 @@ export function ProfileLookup() {
         if (cancelled) return;
         setResult({
           kind: 'found',
-          address,
+          address: target,
           nonce,
           data: {
             avatarType: view.avatarInfo.type as AvatarType,
@@ -117,7 +123,7 @@ export function ProfileLookup() {
         if (cancelled) return;
         setResult({
           kind: 'error',
-          address,
+          address: target,
           nonce,
           error: err instanceof Error ? err.message : 'Unknown error',
         });
@@ -127,76 +133,98 @@ export function ProfileLookup() {
     return () => {
       cancelled = true;
     };
-  }, [address, nonce]);
+  }, [target, nonce]);
 
-  if (!isConnected || !address) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>
-            Connect inside the Circles host to look up the user&apos;s avatar.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  const fresh = result && result.address === address && result.nonce === nonce ? result : null;
-  const isLoading = !fresh;
+  const fresh = result && result.address === target && result.nonce === nonce ? result : null;
+  const isLoading = !!target && !fresh;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-2">
-          <span>Circles avatar</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setNonce((n) => n + 1)}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Loading…' : 'Refresh'}
-          </Button>
-        </CardTitle>
-        <CardDescription>
-          Fetched via{' '}
-          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-            sdk.rpc.profile.getProfileView(address)
-          </code>{' '}
-          from{' '}
-          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-            @aboutcircles/sdk
-          </code>
-          .
-        </CardDescription>
-      </CardHeader>
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Find an avatar</CardTitle>
+          <CardDescription>
+            Search the Circles directory via{' '}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              sdk.rpc.profile.searchProfiles(query)
+            </code>
+            . Pick a result to inspect it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProfileSearch
+            onSelect={(addr) => {
+              setSelected(addr);
+              setNonce((n) => n + 1);
+            }}
+          />
+        </CardContent>
+      </Card>
 
-      <CardContent className="text-sm">
-        {isLoading && <ProfileSkeleton />}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span>Circles avatar</span>
+            <div className="flex items-center gap-2">
+              {viewingOther && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelected(null);
+                    setNonce((n) => n + 1);
+                  }}
+                >
+                  View mine
+                </Button>
+              )}
+              {target && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setNonce((n) => n + 1)}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Loading…' : 'Refresh'}
+                </Button>
+              )}
+            </div>
+          </CardTitle>
+          <CardDescription>
+            Fetched via{' '}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              sdk.rpc.profile.getProfileView(address)
+            </code>{' '}
+            from{' '}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">@aboutcircles/sdk</code>.
+          </CardDescription>
+        </CardHeader>
 
-        {fresh?.kind === 'not-registered' && (
-          <p className="text-muted-foreground">
-            This address is not a registered Circles avatar. Sign up at{' '}
-            <a
-              className="underline"
-              href="https://app.metri.xyz"
-              target="_blank"
-              rel="noreferrer"
-            >
-              app.metri.xyz
-            </a>{' '}
-            to claim one.
-          </p>
-        )}
+        <CardContent className="text-sm">
+          {!target && (
+            <p className="text-muted-foreground">
+              Connect inside the Circles host, or search above, to inspect an avatar.
+            </p>
+          )}
 
-        {fresh?.kind === 'error' && (
-          <p className="text-destructive">{fresh.error}</p>
-        )}
+          {target && isLoading && <ProfileSkeleton />}
 
-        {fresh?.kind === 'found' && <ProfileView data={fresh.data} address={address} />}
-      </CardContent>
-    </Card>
+          {fresh?.kind === 'not-registered' && (
+            <p className="text-muted-foreground">
+              This address is not a registered Circles avatar. Sign up at{' '}
+              <a className="underline" href="https://app.metri.xyz" target="_blank" rel="noreferrer">
+                app.metri.xyz
+              </a>{' '}
+              to claim one.
+            </p>
+          )}
+
+          {fresh?.kind === 'error' && <p className="text-destructive">{fresh.error}</p>}
+
+          {fresh?.kind === 'found' && <ProfileView data={fresh.data} address={target!} />}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -261,8 +289,7 @@ function ProfileView({ data, address }: { data: ProfileResult; address: string }
             <>
               <span className="text-muted-foreground">Trust</span>
               <span>
-                trusts {data.trustsCount ?? 0} · trusted by{' '}
-                {data.trustedByCount ?? 0}
+                trusts {data.trustsCount ?? 0} · trusted by {data.trustedByCount ?? 0}
               </span>
             </>
           )}

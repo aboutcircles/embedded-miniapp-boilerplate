@@ -1,4 +1,5 @@
 import { NavCards } from '@/components/layout/NavCards';
+import { BalancesCard } from '@/components/wallet/BalancesCard';
 import { ConnectionCard } from '@/components/wallet/ConnectionCard';
 import { SignInDemo } from '@/components/wallet/SignInDemo';
 
@@ -13,6 +14,8 @@ export default function DashboardPage() {
       </div>
 
       <ConnectionCard />
+
+      <BalancesCard />
 
       <SignInDemo />
 

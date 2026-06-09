@@ -113,39 +113,52 @@ if (view.avatarInfo?.cidV0) {
 
 **Why `getProfileView` and not `sdk.getAvatar()`?** `getAvatar()` is the right call when you need a write-capable `Avatar` instance (trust, transfer, mint). For read-only lookups it can throw a misleading "Avatar not found" error even on valid avatars whose on-chain `cidV0Digest` is empty. `getProfileView()` is the read primitive and degrades gracefully — it returns `avatarInfo: undefined` for addresses that aren't Circles avatars.
 
-For write flows, fall back to `sdk.getAvatar(address)` once the user has both a wallet and a registered avatar; the same object exposes `balances`, `trust`, `history`, `transfer`. See [`components/profile/ProfileLookup.tsx`](components/profile/ProfileLookup.tsx).
+See [`components/profile/ProfileLookup.tsx`](components/profile/ProfileLookup.tsx) for the read flow. For **writes** in a miniapp (no keys), don't use `getAvatar()`'s executing methods — encode the calldata with `@aboutcircles/sdk` and submit it through the host (see *Sending transactions* below).
 
 ## Sending transactions
 
+A miniapp holds no keys, so writes are a two-step pipeline: **encode** calldata with
+`@aboutcircles/sdk` (read-only, no signer), then **submit** through the host.
+
 ```ts
 'use client';
-import { sendTransactions } from '@aboutcircles/miniapp-sdk';
+import { getSdk, submitViaHost, INDEFINITE_TRUST_EXPIRY } from '@/lib/circles';
 
-const txHashes = await sendTransactions([
-  { to: '0x…', data: '0x…', value: '0' },
-]);
+const sdk = await getSdk();
+const tx = sdk.core.hubV2.trust(address, INDEFINITE_TRUST_EXPIRY); // → { to, data, value }
+const [hash] = await submitViaHost([tx]); // host signs + broadcasts via the user's Safe
 ```
 
-The host batches and signs through the user's Safe and returns the resulting tx hashes.
+`sdk.core.hubV2.*` (`trust`, `safeTransferFrom`, `personalMint`, …) returns calldata
+without executing; for transfers routed across the trust graph,
+`TransferBuilder.constructAdvancedTransfer` runs the pathfinding. The `/trust` (single
+call) and `/send` (pathfinding) routes are working examples, and
+[`lib/circles.ts`](lib/circles.ts) wraps the plumbing — `getSdk`, `submitViaHost`, and CRC
+helpers. The host batches and signs through the user's Safe and returns the tx hashes.
 
 ## Project layout
 
 ```
 app/
   layout.tsx              Root: wraps every page in <WalletProvider><AppShell>
-  page.tsx                Dashboard — connection card, sign-in demo, nav cards
+  page.tsx                Dashboard — connection, holdings, sign-in demo, nav cards
   account/page.tsx        Account creation/connection via requestCreateAccount
-  profile/page.tsx        Circles avatar lookup via @aboutcircles/sdk
-  actions/page.tsx        Placeholder (where sendTransactions demos go)
+  profile/page.tsx        Avatar search + profile lookup via @aboutcircles/sdk
+  trust/page.tsx          Trust graph (read) + trust an address (write)
+  send/page.tsx           Send Circles via pathfinding (write)
+  activity/page.tsx       Enriched transaction history feed (read)
   globals.css             Tailwind v4 + shadcn tokens (light only)
 components/
   layout/                 AppShell, Header, Sidebar, NavCards
-  wallet/                 WalletProvider, WalletStatus, ConnectionCard, CreateAccountDemo, SignInDemo
-  profile/                ProfileLookup (uses @aboutcircles/sdk)
+  circles/                TxResult (shared write-result UI)
+  wallet/                 WalletProvider, WalletStatus, ConnectionCard, BalancesCard, CreateAccountDemo, SignInDemo
+  profile/                ProfileLookup + ProfileSearch (uses @aboutcircles/sdk)
+  trust/                  TrustDemo · send/ SendDemo · activity/ ActivityFeed
   ui/                     shadcn-generated primitives
 hooks/use-wallet.ts       Re-export of useWallet
 lib/
   utils.ts                cn() + shortenAddress()
+  circles.ts              Encode + submitViaHost write helpers (read-only Sdk, CRC utils)
   nav.ts                  Sidebar nav items (single source of truth)
 ```
 

@@ -7,5 +7,7 @@ export const NAV: NavItem[] = [
   { href: "/", label: "Dashboard" },
   { href: "/account", label: "Account" },
   { href: "/profile", label: "Profile" },
-  { href: "/actions", label: "Actions" },
+  { href: "/trust", label: "Trust" },
+  { href: "/send", label: "Send" },
+  { href: "/activity", label: "Activity" },
 ];

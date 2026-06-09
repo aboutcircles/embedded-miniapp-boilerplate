@@ -17,12 +17,22 @@ const ITEMS: Item[] = [
   {
     href: '/profile',
     title: 'Profile',
-    description: 'Look up the connected user’s Circles avatar — name, description, image.',
+    description: 'Search the directory and inspect any avatar — name, balances, trust stats.',
   },
   {
-    href: '/actions',
-    title: 'Actions',
-    description: 'Build and submit transactions through the host via sendTransactions().',
+    href: '/trust',
+    title: 'Trust',
+    description: 'Read the trust graph and trust an address — the simplest end-to-end write.',
+  },
+  {
+    href: '/send',
+    title: 'Send',
+    description: 'Send Circles routed across the trust network via pathfinding.',
+  },
+  {
+    href: '/activity',
+    title: 'Activity',
+    description: 'An enriched transfer + mint history feed with cursor pagination.',
   },
 ];
 
